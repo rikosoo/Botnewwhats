@@ -102,6 +102,7 @@ def test_extract_phone():
 
 
 async def test_d_minus_11_and_d_minus_3_each_sent_once(settings, clinic, sessionmaker, chatwoot, calendar):
+    clinic.lembretes.dias_antes = [11, 3]  # configuração opcional com dois lembretes
     inicio = local(2026, 10, 20, 9)  # terça
     await _add_event(calendar, "ev-x", inicio)
     await _seed(sessionmaker, inicio)

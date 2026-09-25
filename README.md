@@ -76,17 +76,12 @@ horários direto no Google Agenda. Os horários oferecidos vêm das janelas do `
 respeitando antecedência mínima (24h) e janela máxima (60 dias). Todo agendamento
 revalida o horário no momento de gravar. Retornos só até 45 dias da última consulta.
 
-**Lembretes (09:00).** Dois lembretes antes, com o template `lembrete_consulta` e os
-botões *Confirmar* / *Remarcar*:
-- **D-11**: sai antes do prazo de cancelamento (10 dias), então o paciente ainda pode
-  remarcar ou cancelar pelo próprio bot.
-- **D-3**: lembrete final. Nessa altura já passou do prazo, então pedidos de
-  remarcação/cancelamento vão para a equipe decidir.
-
-"Confirmar" marca como confirmada e põe ✅ no título do evento; "Remarcar" faz o bot
-oferecer novos horários (respeitando o prazo). D+3 → template `pos_consulta`. A tabela
-`lembretes_enviados` (única por consulta+tipo) garante envio único. Os dias ficam em
-`clinic.yaml` → `lembretes.dias_antes`.
+**Lembretes (09:00).** 3 dias antes (D-3) sai o template `lembrete_consulta` com os
+botões *Confirmar* / *Remarcar*. "Confirmar" marca como confirmada e põe ✅ no título do
+evento. "Remarcar" faz o bot seguir a política de cancelamento: fora do prazo de 10 dias,
+a equipe decide. D+3 → template `pos_consulta`. A tabela `lembretes_enviados` (única por
+consulta+tipo) garante envio único. Os dias ficam em `clinic.yaml` →
+`lembretes.dias_antes`. A política de cancelamento só é informada se o paciente perguntar.
 
 **Humanização.** Aguarda ~4s de silêncio para juntar mensagens seguidas, responde em até 3
 mensagens com delay `min(1.5 + len/40, 6)`s, e o primeiro contato recebe apresentação e

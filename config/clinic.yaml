@@ -35,9 +35,8 @@ atendimento:
 
 lembretes:
   horario_execucao: "09:00"   # America/Sao_Paulo
-  # D-11: sai antes do prazo de 10 dias, então o paciente ainda pode cancelar/remarcar pelo bot.
-  # D-3: lembrete final perto da data.
-  dias_antes: [11, 3]
+  # Dias antes da consulta em que sai o lembrete (aceita mais de um, ex.: [7, 3]).
+  dias_antes: [3]
   dias_depois: 3
 
 privacidade:

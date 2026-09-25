@@ -243,7 +243,7 @@ docker compose logs -f bot     # deve aparecer "Application startup complete"
 ## Etapa 10 — Dados do consultório
 Já estão no `config/clinic.yaml`: PIX ou dinheiro, cancelamento com 10 dias de
 antecedência, atendimento às terças das 8h às 16h, consulta de 1h, retorno de 45 min e
-lembretes 11 e 3 dias antes da consulta.
+lembrete 3 dias antes da consulta.
 **Falta o endereço.** Para mudar qualquer dado, edite o arquivo (ou me peça) e rode
 `bash /opt/botnefro/deploy/aws/update.sh`.
 
