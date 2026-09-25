@@ -27,13 +27,14 @@ class LLMAgent:
         self.s = settings or get_settings()
         self.client = client or make_client(self.s)
 
-    async def reply(self, system_prompt: str, history: list[dict[str, str]], ctx: ToolContext) -> str:
+    async def reply(self, system_prompt: str, history: list[dict[str, str]], ctx: ToolContext,
+                    tools: list[dict[str, Any]] | None = None) -> str:
         messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}, *history]
         for _ in range(self.s.max_tool_iterations):
             resp = await self.client.chat.completions.create(
                 model=self.s.llm_model,
                 messages=messages,
-                tools=TOOL_DEFINITIONS,
+                tools=tools if tools is not None else TOOL_DEFINITIONS,
                 tool_choice="auto",
                 temperature=0.3,
             )
@@ -53,7 +54,11 @@ class LLMAgent:
             })
             for tc in tool_calls:
                 log.info("Tool call: %s", tc.function.name)
-                result = await execute_tool(ctx, tc.function.name, tc.function.arguments)
+                allowed = {t["function"]["name"] for t in (tools if tools is not None else TOOL_DEFINITIONS)}
+                if tc.function.name in allowed:
+                    result = await execute_tool(ctx, tc.function.name, tc.function.arguments)
+                else:
+                    result = '{"erro": "Ferramenta não disponível para esta mensagem."}'
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
 
         log.warning("Limite de %s iterações de tool calling atingido", self.s.max_tool_iterations)

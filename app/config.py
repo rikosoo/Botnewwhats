@@ -30,7 +30,8 @@ class Settings(BaseSettings):
 
     llm_provider: str = "gemini"
     llm_api_key: str = ""
-    llm_model: str = "gemini-2.5-flash"
+    llm_model: str = "gemini-2.5-flash-lite"
+    router_model: str = ""  # vazio = mesmo modelo do LLM_MODEL
     llm_base_url: str = ""
 
     chatwoot_url: str = ""
@@ -118,6 +119,19 @@ class Privacidade(BaseModel):
     aviso_primeiro_contato: str = ""
 
 
+class Mensagens(BaseModel):
+    """Respostas fixas: casos clínicos nunca recebem texto gerado pela IA."""
+
+    clinico: str = (
+        "Obrigada pela mensagem. Como se trata de uma questão de saúde, ela foi encaminhada "
+        "para a equipe da Dra. Ana Paula, que vai responder assim que possível."
+    )
+    urgente: str = (
+        "Recebemos sua mensagem e ela foi encaminhada com prioridade para a equipe da "
+        "Dra. Ana Paula, que vai responder o mais rápido possível."
+    )
+
+
 class Templates(BaseModel):
     lembrete_consulta: str = "lembrete_consulta"
     pos_consulta: str = "pos_consulta"
@@ -138,6 +152,7 @@ class ClinicConfig(BaseModel):
     lembretes: Lembretes = Field(default_factory=Lembretes)
     privacidade: Privacidade = Field(default_factory=Privacidade)
     templates: Templates = Field(default_factory=Templates)
+    mensagens: Mensagens = Field(default_factory=Mensagens)
 
     def duracao(self, tipo: str) -> int:
         return self.retorno.duracao_minutos if tipo == "retorno" else self.atendimento.duracao_minutos

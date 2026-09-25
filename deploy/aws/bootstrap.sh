@@ -1,7 +1,6 @@
 #!/bin/bash
-# Prepara uma instância EC2 Ubuntu 24.04 do zero. Rode como root:
-#   curl -fsSL https://raw.githubusercontent.com/<usuario>/<repo>/main/deploy/aws/bootstrap.sh | sudo bash -s -- <url-do-repo>
-# ou, com o repositório já clonado:  sudo bash deploy/aws/bootstrap.sh
+# Prepara uma instância Ubuntu 24.04 (Lightsail ou EC2) do zero. Com o repositório já clonado em /opt/botnefro:
+#   sudo bash /opt/botnefro/deploy/aws/bootstrap.sh
 set -euo pipefail
 
 REPO_URL="${1:-}"
@@ -23,7 +22,6 @@ if ! command -v docker >/dev/null; then
 fi
 apt-get update -y
 apt-get install -y git unattended-upgrades
-command -v aws >/dev/null || snap install aws-cli --classic
 usermod -aG docker ubuntu || true
 
 if [ -n "$REPO_URL" ] && [ ! -d "$APP_DIR/.git" ]; then

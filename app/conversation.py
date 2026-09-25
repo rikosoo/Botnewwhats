@@ -20,8 +20,9 @@ from app.db.models import Consulta, LembreteEnviado, Mensagem, Paciente, StatusC
 from app.humanize import send_humanized
 from app.llm import FALLBACK_REPLY, LLMAgent
 from app.persona import build_system_prompt
+from app.router import CLINICO, URGENTE, Router
 from app.security import RateLimiter, mask_phone, normalize_phone
-from app.tools import ToolContext, _titulo, chamar_humano, proxima_consulta
+from app.tools import ToolContext, _titulo, alerta_urgente, chamar_humano, proxima_consulta, tools_for
 
 log = logging.getLogger(__name__)
 
@@ -55,6 +56,7 @@ class Bot:
         chatwoot: ChatwootClient,
         calendar: CalendarBackend,
         llm: LLMAgent,
+        router: Router | None = None,
         sleep=asyncio.sleep,
     ) -> None:
         self.s = settings
@@ -63,6 +65,7 @@ class Bot:
         self.chatwoot = chatwoot
         self.calendar = calendar
         self.llm = llm
+        self.router = router or Router(llm.client, settings.router_model or settings.llm_model)
         self.sleep = sleep
         self.rate_limiter = RateLimiter(settings.rate_limit_per_minute)
         self._pending: dict[int, Incoming] = {}
@@ -198,9 +201,12 @@ class Bot:
                               chatwoot=self.chatwoot, calendar=self.calendar, clinic=self.clinic,
                               settings=self.s, now=now)
 
+            categoria = None
             reply, hint = await self._button_reply(ctx, texto)
+            if reply is None and hint is None:
+                reply, categoria = await self._route(ctx, texto)
             if reply is None:
-                reply = await self._llm_reply(ctx, hint)
+                reply = await self._llm_reply(ctx, hint, categoria)
 
             await self.chatwoot.mark_read(item.conversation_id)
             if is_new and self.clinic.privacidade.aviso_primeiro_contato:
@@ -213,6 +219,19 @@ class Bot:
                 session.add(Mensagem(paciente_id=paciente.id, papel="bot", conteudo=reply))
             await session.commit()
             return reply
+
+    async def _route(self, ctx: ToolContext, texto: str) -> tuple[str | None, str]:
+        """Router: casos clínicos/urgentes vão direto para a equipe com resposta fixa, sem IA."""
+        history = await self._history(ctx)
+        categoria = await self.router.classify(texto, history[:-1])
+        log.info("Router: conversa %s -> %s", ctx.conversation_id, categoria)
+        if categoria == URGENTE:
+            await alerta_urgente(ctx, "Possível urgência (classificado automaticamente). Responder com prioridade.")
+            return self.clinic.mensagens.urgente, categoria
+        if categoria == CLINICO:
+            await chamar_humano(ctx, "Assunto clínico (classificado automaticamente).")
+            return self.clinic.mensagens.clinico, categoria
+        return None, categoria
 
     async def _button_reply(self, ctx: ToolContext, texto: str) -> tuple[str | None, str | None]:
         """Trata os botões do template de lembrete (Confirmar / Remarcar)."""
@@ -261,7 +280,7 @@ class Bot:
                 history.append({"role": "assistant", "content": m.conteudo})
         return history
 
-    async def _llm_reply(self, ctx: ToolContext, hint: str | None) -> str:
+    async def _llm_reply(self, ctx: ToolContext, hint: str | None, categoria: str | None) -> str:
         proxima: Consulta | None = await proxima_consulta(ctx)
         resumo = f"próximo agendamento: {proxima.tipo} em {format_slot(proxima.inicio, ctx.zone)} " \
                  f"(status {proxima.status})" if proxima else "nenhum agendamento futuro"
@@ -270,7 +289,8 @@ class Bot:
             system += f"\n\nOBSERVAÇÃO: {hint}"
         history = await self._history(ctx)
         try:
-            return await self.llm.reply(system, history, ctx)
+            tools = tools_for("acao" if hint else (categoria or "acao"))
+            return await self.llm.reply(system, history, ctx, tools)
         except Exception:
             log.exception("Falha no LLM")
             if not ctx.handed_off:

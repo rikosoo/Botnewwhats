@@ -11,6 +11,7 @@ from app.config import Settings
 from app.conversation import Bot, Incoming
 from app.db.models import Consulta, LembreteEnviado, Mensagem, Paciente, StatusConsulta
 from app.llm import LLMAgent
+from app.router import ADMINISTRATIVO, Router, classify_by_rules
 from tests.conftest import NOW, local
 
 
@@ -40,9 +41,20 @@ async def _no_sleep(_):
     return None
 
 
-def _bot(settings, clinic, sessionmaker, chatwoot, calendar, responses):
+class StubRouter:
+    """Regras reais de palavras-chave; sem regra, devolve a categoria fixa (no lugar do LLM classificador)."""
+
+    def __init__(self, default=ADMINISTRATIVO):
+        self.default = default
+
+    async def classify(self, text, contexto=None):
+        return classify_by_rules(text) or self.default
+
+
+def _bot(settings, clinic, sessionmaker, chatwoot, calendar, responses, category=ADMINISTRATIVO):
     llm_client = ScriptedLLM(responses)
-    bot = Bot(settings, clinic, sessionmaker, chatwoot, calendar, LLMAgent(settings, llm_client), sleep=_no_sleep)
+    bot = Bot(settings, clinic, sessionmaker, chatwoot, calendar, LLMAgent(settings, llm_client),
+              router=StubRouter(category), sleep=_no_sleep)
     return bot, llm_client
 
 
@@ -77,7 +89,7 @@ async def test_full_booking_conversation(settings, clinic, sessionmaker, chatwoo
         _resp(tool_calls=[_tool_call("agendar_consulta", {"nome_completo": "Maria da Silva",
                                                           "inicio": "2026-10-07T08:00", "tipo": "consulta"})]),
         _resp("Consulta agendada para quarta-feira, 07/10, às 08:00."),
-    ])
+    ], category="acao")
     reply = await bot.process(Incoming(42, "+5516999990000", "Maria", 5, ["Pode confirmar, quarta 8h."]), NOW)
     assert "agendada" in reply
     assert len(calendar.events) == 1
@@ -85,13 +97,22 @@ async def test_full_booking_conversation(settings, clinic, sessionmaker, chatwoo
     assert tool_msg["role"] == "tool" and json.loads(tool_msg["content"])["ok"] is True
 
 
-async def test_clinical_question_hands_off_and_bot_stops(settings, clinic, sessionmaker, chatwoot, calendar):
-    bot, _ = _bot(settings, clinic, sessionmaker, chatwoot, calendar, [
-        _resp(tool_calls=[_tool_call("chamar_humano", {"motivo": "Pergunta sobre creatinina"})]),
-        _resp("Sua dúvida será encaminhada à Dra. Ana Paula."),
-    ])
-    await bot.process(Incoming(42, "+5516999990000", "Maria", 5, ["Minha creatinina deu 2,1, é grave?"]), NOW)
+@pytest.mark.parametrize("texto", [
+    "Minha creatinina deu 3,2, é grave?",
+    "Posso parar esse medicamento?",
+])
+async def test_clinical_question_hands_off_without_ai(settings, clinic, sessionmaker, chatwoot, calendar, texto):
+    bot, llm = _bot(settings, clinic, sessionmaker, chatwoot, calendar, [])
+    reply = await bot.process(Incoming(42, "+5516999990000", "Maria", 5, [texto]), NOW)
+    assert reply == clinic.mensagens.clinico  # resposta fixa
+    assert llm.calls == []                   # a IA não escreveu nada
     assert chatwoot.status[42] == "open"
+    assert HUMAN_LABEL in chatwoot.labels[42]
+    assert "urgente" not in chatwoot.labels[42]
+
+
+async def test_bot_stops_after_handoff(settings, clinic, sessionmaker, chatwoot, calendar):
+    bot, _ = _bot(settings, clinic, sessionmaker, chatwoot, calendar, [])
     # Próxima mensagem chega com status open + etiqueta: o bot ignora.
     result = await bot.handle_webhook(_payload("Oi?", status="open", labels=[HUMAN_LABEL]))
     assert result == "ignored:not-pending"
@@ -111,15 +132,40 @@ async def test_team_returns_conversation_to_bot(settings, clinic, sessionmaker, 
     assert chatwoot.public_messages(42)[-1] == "Posso ajudar em algo mais?"
 
 
-async def test_severe_symptom_triggers_urgent_alert(settings, clinic, sessionmaker, chatwoot, calendar):
-    bot, _ = _bot(settings, clinic, sessionmaker, chatwoot, calendar, [
-        _resp(tool_calls=[_tool_call("alerta_urgente", {"resumo": "Falta de ar intensa"})]),
-        _resp("Por favor, procure atendimento médico imediato (SAMU 192)."),
-    ])
-    reply = await bot.process(Incoming(42, "+5516999990000", "Maria", 5, ["Estou com muita falta de ar"]), NOW)
-    assert "imediato" in reply
-    assert "urgente" in chatwoot.labels[42]
+@pytest.mark.parametrize("texto", ["Estou com muita dor.", "Estou com muita falta de ar"])
+async def test_severe_symptom_goes_to_human_with_priority(settings, clinic, sessionmaker, chatwoot, calendar, texto):
+    bot, llm = _bot(settings, clinic, sessionmaker, chatwoot, calendar, [])
+    reply = await bot.process(Incoming(42, "+5516999990000", "Maria", 5, [texto]), NOW)
+    assert reply == clinic.mensagens.urgente
+    assert "SAMU" not in reply
+    assert llm.calls == []
+    assert {"urgente", HUMAN_LABEL} <= chatwoot.labels[42]
     assert chatwoot.priority[42] == "urgent"
+    assert chatwoot.status[42] == "open"
+
+
+async def test_admin_message_gets_read_only_tools(settings, clinic, sessionmaker, chatwoot, calendar):
+    bot, llm = _bot(settings, clinic, sessionmaker, chatwoot, calendar, [_resp("Sim, temos horários.")])
+    await bot.process(Incoming(42, "+5516999990000", "Maria", 5, ["Tem horário sexta?"]), NOW)
+    names = {t["function"]["name"] for t in llm.calls[0]["tools"]}
+    assert "consultar_horarios" in names and "agendar_consulta" not in names
+
+
+async def test_llm_router_classifies_and_falls_back(settings):
+    client = ScriptedLLM([_resp('{"categoria": "clinico"}'), _resp("resposta inválida")])
+    router = Router(client, "modelo")
+    assert await router.classify("Estou meio estranha desde ontem") == "clinico"
+    assert await router.classify("Bom dia") == ADMINISTRATIVO
+    assert await Router(ScriptedLLM([]), "m").classify("Quero marcar sexta") == "acao"  # LLM falhou: regras
+
+
+def test_rules():
+    assert classify_by_rules("Qual o valor da consulta?") is None
+    assert classify_by_rules("Atende Unimed?") is None
+    assert classify_by_rules("Quero marcar sexta.") == "acao"
+    assert classify_by_rules("Minha creatinina deu 3,2, é grave?") == "clinico"
+    assert classify_by_rules("Estou com muita dor.") == "urgente"
+    assert classify_by_rules("Preciso dormir cedo, tem horário à tarde?") is None
 
 
 async def test_debounce_groups_messages(settings, clinic, sessionmaker, chatwoot, calendar):

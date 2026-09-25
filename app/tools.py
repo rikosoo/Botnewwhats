@@ -101,8 +101,8 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "chamar_humano",
-            "description": "Transfere a conversa para a equipe (dúvida clínica, pedido de atendente, "
-                           "informação que você não tem).",
+            "description": "Transfere a conversa para a equipe (pedido de atendente, informação que você "
+                           "não tem, ou qualquer assunto de saúde que tenha passado despercebido).",
             "parameters": {
                 "type": "object",
                 "properties": {"motivo": {"type": "string"}},
@@ -110,19 +110,18 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "alerta_urgente",
-            "description": "Paciente relata mal-estar intenso ou situação grave. Transfere com prioridade alta.",
-            "parameters": {
-                "type": "object",
-                "properties": {"resumo": {"type": "string"}},
-                "required": ["resumo"],
-            },
-        },
-    },
 ]
+
+# Mensagens administrativas: só consulta (sem gravar na agenda).
+READ_ONLY_TOOLS = {"consultar_horarios", "verificar_retorno", "chamar_humano"}
+
+
+def tools_for(categoria: str) -> list[dict[str, Any]]:
+    """Ferramentas liberadas ao LLM conforme a categoria do router.
+    Casos clínicos/urgentes nunca chegam ao LLM (alerta_urgente é chamado direto pelo código)."""
+    if categoria == "acao":
+        return TOOL_DEFINITIONS
+    return [t for t in TOOL_DEFINITIONS if t["function"]["name"] in READ_ONLY_TOOLS]
 
 
 @dataclass

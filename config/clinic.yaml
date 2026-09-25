@@ -41,6 +41,16 @@ privacidade:
     Olá! Sou a assistente virtual da Dra. Ana Paula. Para o agendamento, utilizamos
     apenas seu nome e telefone, conforme a LGPD.
 
+# Respostas fixas do router. Mensagens clínicas NUNCA recebem resposta gerada pela IA:
+# o bot envia este texto, transfere a conversa para a equipe e para de responder.
+mensagens:
+  clinico: >-
+    Obrigada pela mensagem. Como se trata de uma questão de saúde, ela foi encaminhada
+    para a equipe da Dra. Ana Paula, que vai responder assim que possível.
+  urgente: >-
+    Recebemos sua mensagem e ela foi encaminhada com prioridade para a equipe da
+    Dra. Ana Paula, que vai responder o mais rápido possível.
+
 templates:
   lembrete_consulta: "lembrete_consulta"
   pos_consulta: "pos_consulta"

@@ -1,4 +1,4 @@
-# Stack completa em uma única instância EC2:
+# Stack completa em uma única máquina (Lightsail ou EC2):
 #   caddy (HTTPS automático) -> bot (FastAPI) e Chatwoot (rails + sidekiq)
 #   postgres (bancos "bot" e "chatwoot") + redis (Chatwoot)
 #
