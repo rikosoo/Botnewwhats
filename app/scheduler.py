@@ -20,7 +20,7 @@ from app.security import mask_phone
 
 log = logging.getLogger(__name__)
 
-D_MINUS = "d-3"
+PREFIXO_ANTES = "d-"  # tipos "d-11", "d-3"...
 D_PLUS = "d+3"
 
 _PHONE_IN_TEXT = re.compile(r"(?:\+?55[\s-]?)?\(?\d{2}\)?[\s-]?9?\d{4}[\s-]?\d{4}")
@@ -83,7 +83,8 @@ class Scheduler:
         summary: dict[str, int] = {}
         async with self.sessionmaker() as session:
             summary["realizadas"] = await self.mark_done(session, now)
-            summary["lembretes_d3"] = await self.send_before(session, now)
+            for dias in sorted(set(self.clinic.lembretes.dias_antes), reverse=True):
+                summary[f"lembretes_d{dias}"] = await self.send_before(session, now, dias)
             summary["pos_consulta_d3"] = await self.send_after(session, now)
             summary["mensagens_removidas"] = await self.cleanup(session, now)
         log.info("Rotina diária concluída: %s", summary)
@@ -98,7 +99,7 @@ class Scheduler:
         await session.commit()
         return len(rows)
 
-    # --- D-3 -------------------------------------------------------------
+    # --- lembretes antes da consulta (D-11, D-3) ---------------------------
     async def _sync_day_with_calendar(self, session: AsyncSession, day_start: datetime, day_end: datetime) -> None:
         """Importa consultas marcadas direto na agenda (com telefone) e detecta cancelamentos/mudanças."""
         events = [e for e in await self.calendar.list_events(day_start, day_end) if e.get("status") != "cancelled"]
@@ -142,8 +143,8 @@ class Scheduler:
                                  status=StatusConsulta.AGENDADA, google_event_id=ev["id"], origem="agenda"))
         await session.commit()
 
-    async def send_before(self, session: AsyncSession, now: datetime) -> int:
-        target = now.astimezone(self.zone).date() + timedelta(days=self.clinic.lembretes.dias_antes)
+    async def send_before(self, session: AsyncSession, now: datetime, dias: int = 3) -> int:
+        target = now.astimezone(self.zone).date() + timedelta(days=dias)
         start, end = day_bounds(target, self.zone)
         try:
             await self._sync_day_with_calendar(session, start, end)
@@ -162,7 +163,8 @@ class Scheduler:
             params = {"1": nome, "2": local.strftime("%d/%m/%Y"), "3": local.strftime("%H:%M")}
             content = (f"Olá, {nome}. Lembramos da sua {c.tipo} com a {self.clinic.medica} no dia "
                        f"{params['2']}, às {params['3']}. Por gentileza, confirme sua presença.")
-            if await self._send_once(session, c, D_MINUS, self.clinic.templates.lembrete_consulta, params, content):
+            tipo = f"{PREFIXO_ANTES}{dias}"
+            if await self._send_once(session, c, tipo, self.clinic.templates.lembrete_consulta, params, content):
                 sent += 1
         return sent
 

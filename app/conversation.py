@@ -242,7 +242,8 @@ class Bot:
         if consulta is None:
             return None, None
         lembrete = (await ctx.session.execute(
-            select(LembreteEnviado).where(LembreteEnviado.consulta_id == consulta.id, LembreteEnviado.tipo == "d-3")
+            select(LembreteEnviado).where(LembreteEnviado.consulta_id == consulta.id,
+                                          LembreteEnviado.tipo.like("d-%")).limit(1)
         )).scalar_one_or_none()
         if lembrete is None:
             return None, None

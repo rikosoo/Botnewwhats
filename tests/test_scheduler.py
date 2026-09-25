@@ -99,3 +99,20 @@ def test_extract_phone():
     assert extract_phone({"description": "Telefone: +55 16 99999-8888"}) == "+5516999998888"
     assert extract_phone({"extendedProperties": {"private": {"telefone": "+5516999998888"}}}) == "+5516999998888"
     assert extract_phone({"description": "sem número"}) is None
+
+
+async def test_d_minus_11_and_d_minus_3_each_sent_once(settings, clinic, sessionmaker, chatwoot, calendar):
+    inicio = local(2026, 10, 20, 9)  # terça
+    await _add_event(calendar, "ev-x", inicio)
+    await _seed(sessionmaker, inicio)
+    sched = _scheduler(settings, clinic, sessionmaker, chatwoot, calendar)
+
+    d11 = await sched.run_daily(local(2026, 10, 9, 9))
+    assert (d11["lembretes_d11"], d11["lembretes_d3"]) == (1, 0)
+    assert (await sched.run_daily(local(2026, 10, 9, 9)))["lembretes_d11"] == 0
+    d3 = await sched.run_daily(local(2026, 10, 17, 9))
+    assert (d3["lembretes_d11"], d3["lembretes_d3"]) == (0, 1)
+    async with sessionmaker() as s:
+        tipos = sorted(r.tipo for r in (await s.execute(select(LembreteEnviado))).scalars())
+    assert tipos == ["d-11", "d-3"]
+    assert len(chatwoot.templates) == 2

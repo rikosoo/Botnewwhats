@@ -71,10 +71,26 @@ No `nano`, preencha `BOT_DOMAIN`, `CHATWOOT_DOMAIN` e `ACME_EMAIL`.
 Salve com `Ctrl+O`, `Enter` e saia com `Ctrl+X`.
 
 ## Etapa 4 — Chave do Gemini (gratuita)
-1. Acesse <https://aistudio.google.com/apikey> com uma conta Google.
-2. **Create API key** → copie.
-3. No `.env`: `LLM_API_KEY=<chave>`. Mantenha `LLM_PROVIDER=gemini` e
-   `LLM_MODEL=gemini-2.5-flash-lite`.
+Não precisa de cartão de crédito.
+1. Acesse <https://aistudio.google.com/apikey> e entre com uma conta Google (Gmail comum
+   serve; de preferência a conta da clínica).
+2. Na primeira vez, aceite os termos de uso do Google AI Studio.
+3. Clique em **Criar chave de API** (*Create API key*). Se ele perguntar o projeto,
+   escolha **criar em um novo projeto**.
+4. A chave aparece na tela, começando com `AIza...`. Clique para **copiar**.
+5. No servidor: `nano /opt/botnefro/deploy/aws/.env` → `LLM_API_KEY=AIza...` (sem aspas
+   nem espaços). Mantenha `LLM_PROVIDER=gemini` e `LLM_MODEL=gemini-2.5-flash-lite`.
+6. Teste no servidor (deve responder um JSON com texto, não um erro):
+   ```bash
+   KEY=$(grep ^LLM_API_KEY /opt/botnefro/deploy/aws/.env | cut -d= -f2)
+   curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=$KEY" \
+     -H 'Content-Type: application/json' -d '{"contents":[{"parts":[{"text":"Diga oi"}]}]}'
+   ```
+
+A chave continua gratuita **enquanto você não ativar o faturamento** ("Set up billing")
+nesse projeto. No plano gratuito há limite de requisições por dia. A tela
+<https://aistudio.google.com/usage> mostra o consumo. Se um dia precisar de mais, é só
+ativar o faturamento nessa mesma chave, sem mexer no bot.
 
 ## Etapa 5 — Google Agenda
 **5.1 Service account (a "conta robô" que mexe na agenda)**
@@ -226,7 +242,8 @@ docker compose logs -f bot     # deve aparecer "Application startup complete"
 
 ## Etapa 10 — Dados do consultório
 Já estão no `config/clinic.yaml`: PIX ou dinheiro, cancelamento com 10 dias de
-antecedência, atendimento às terças das 8h às 16h, consulta de 1h e retorno de 45 min.
+antecedência, atendimento às terças das 8h às 16h, consulta de 1h, retorno de 45 min e
+lembretes 11 e 3 dias antes da consulta.
 **Falta o endereço.** Para mudar qualquer dado, edite o arquivo (ou me peça) e rode
 `bash /opt/botnefro/deploy/aws/update.sh`.
 

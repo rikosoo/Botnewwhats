@@ -10,7 +10,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -110,7 +110,13 @@ class Retorno(BaseModel):
 
 class Lembretes(BaseModel):
     horario_execucao: str = "09:00"
-    dias_antes: int = 3
+    # Lembretes antes da consulta (ex.: [11, 3]: um antes do prazo de cancelamento e outro perto da data).
+    dias_antes: list[int] = Field(default_factory=lambda: [3])
+
+    @field_validator("dias_antes", mode="before")
+    @classmethod
+    def _lista(cls, v):
+        return [v] if isinstance(v, int) else v
     dias_depois: int = 3
 
 

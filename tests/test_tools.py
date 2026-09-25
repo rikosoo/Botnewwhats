@@ -165,3 +165,13 @@ async def test_cancel_within_10_days_goes_to_team(ctx, calendar):
     assert "chamar_humano" in (await cancelar_consulta(ctx))["erro"]
     assert "chamar_humano" in (await remarcar_consulta(ctx, "2026-10-07T09:00"))["erro"]
     assert len(calendar.events) == 1
+
+
+async def test_reschedule_allowed_at_d11_blocked_at_d3(ctx, calendar):
+    ctx.clinic.cancelamento_prazo_dias = 10
+    ctx.clinic.atendimento.janela_maxima_dias = 60
+    await agendar_consulta(ctx, "Maria da Silva", "2026-10-26T08:00", "consulta")  # 21 dias depois
+    ctx.now = local(2026, 10, 15, 9)  # D-11: ainda dentro da política
+    assert (await remarcar_consulta(ctx, "2026-10-26T09:00"))["ok"]
+    ctx.now = local(2026, 10, 23, 9)  # D-3: equipe decide
+    assert "chamar_humano" in (await cancelar_consulta(ctx))["erro"]

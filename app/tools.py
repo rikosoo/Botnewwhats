@@ -301,9 +301,9 @@ async def remarcar_consulta(ctx: ToolContext, novo_inicio: str) -> dict:
             )
         antigo = consulta.inicio
         consulta.inicio, consulta.fim, consulta.status = start, end, StatusConsulta.AGENDADA
-        # O lembrete D-3 deve ser enviado de novo para a nova data.
+        # Os lembretes anteriores (D-11, D-3) devem ser enviados de novo para a nova data.
         await ctx.session.execute(
-            delete(LembreteEnviado).where(LembreteEnviado.consulta_id == consulta.id, LembreteEnviado.tipo == "d-3")
+            delete(LembreteEnviado).where(LembreteEnviado.consulta_id == consulta.id, LembreteEnviado.tipo.like("d-%"))
         )
         await ctx.session.commit()
     return {"ok": True, "de": format_slot(antigo, ctx.zone), "para": format_slot(start, ctx.zone)}
