@@ -123,8 +123,18 @@ def settings() -> Settings:
 def clinic():
     c = load_clinic(ROOT / "config" / "clinic.yaml")
     c.endereco = "Rua Exemplo, 123 — São Carlos"
-    c.formas_pagamento = "PIX, dinheiro e cartão"
+    c.formas_pagamento = "PIX ou dinheiro"
+    # Agenda fixa dos testes (independente do clinic.yaml de produção).
+    c.atendimento.dias = {"seg": ["08:00-12:00", "14:00-18:00"], "ter": [], "qua": ["08:00-12:00", "14:00-18:00"],
+                          "qui": [], "sex": ["08:00-12:00"], "sab": [], "dom": []}
+    c.retorno.duracao_minutos = 60
+    c.cancelamento_prazo_dias = 0
     return c
+
+
+@pytest.fixture
+def real_clinic():
+    return load_clinic(ROOT / "config" / "clinic.yaml")
 
 
 @pytest_asyncio.fixture

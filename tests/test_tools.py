@@ -140,3 +140,28 @@ async def test_execute_tool_handles_bad_args(ctx):
     assert "erro" in out
     out = json.loads(await execute_tool(ctx, "nao_existe", "{}"))
     assert "erro" in out
+
+
+async def test_real_config_tuesday_only_and_45min_return(ctx, real_clinic):
+    ctx.clinic = real_clinic
+    result = await consultar_horarios(ctx, "2026-10-05", "2026-10-11", "consulta")
+    inicios = [h["inicio"] for h in result["horarios"]]
+    assert inicios[0] == "2026-10-06T10:00"  # terça; antes disso fere a antecedência de 24h
+    assert inicios[-1] == "2026-10-06T15:00"  # última consulta termina às 16:00
+    assert all(i.startswith("2026-10-06") for i in inicios)
+
+    inicio = local(2026, 9, 29, 8)
+    ctx.session.add(Consulta(paciente_id=ctx.paciente.id, tipo="consulta", inicio=inicio,
+                             fim=inicio + timedelta(hours=1), status=StatusConsulta.REALIZADA))
+    await ctx.session.commit()
+    result = await consultar_horarios(ctx, "2026-10-13", "2026-10-13", "retorno")
+    inicios = [h["inicio"][11:] for h in result["horarios"]]
+    assert inicios[:3] == ["08:00", "08:45", "09:30"]
+
+
+async def test_cancel_within_10_days_goes_to_team(ctx, calendar):
+    ctx.clinic.cancelamento_prazo_dias = 10
+    await agendar_consulta(ctx, "Maria da Silva", "2026-10-07T08:00", "consulta")
+    assert "chamar_humano" in (await cancelar_consulta(ctx))["erro"]
+    assert "chamar_humano" in (await remarcar_consulta(ctx, "2026-10-07T09:00"))["erro"]
+    assert len(calendar.events) == 1

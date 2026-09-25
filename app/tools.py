@@ -272,10 +272,22 @@ async def agendar_consulta(ctx: ToolContext, nome_completo: str, inicio: str, ti
             "endereco": ctx.clinic.endereco}
 
 
+def _fora_do_prazo(ctx: ToolContext, consulta: Consulta) -> dict | None:
+    """Política de cancelamento: dentro do prazo mínimo, quem decide é a equipe."""
+    prazo = ctx.clinic.cancelamento_prazo_dias
+    if prazo and consulta.inicio - ctx.now < timedelta(days=prazo):
+        return {"erro": f"Faltam menos de {prazo} dias para o agendamento "
+                        f"({format_slot(consulta.inicio, ctx.zone)}). Pela política do consultório, "
+                        "informe o paciente com cordialidade e use chamar_humano para a equipe decidir."}
+    return None
+
+
 async def remarcar_consulta(ctx: ToolContext, novo_inicio: str) -> dict:
     consulta = await proxima_consulta(ctx)
     if consulta is None:
         return {"erro": "Não encontrei agendamento futuro para este paciente."}
+    if (bloqueio := _fora_do_prazo(ctx, consulta)) is not None:
+        return bloqueio
     start = parse_local(novo_inicio, ctx.zone)
     not_after = await prazo_retorno(ctx) if consulta.tipo == "retorno" else None
     async with BOOKING_LOCK:
@@ -301,6 +313,8 @@ async def cancelar_consulta(ctx: ToolContext) -> dict:
     consulta = await proxima_consulta(ctx)
     if consulta is None:
         return {"erro": "Não encontrei agendamento futuro para este paciente."}
+    if (bloqueio := _fora_do_prazo(ctx, consulta)) is not None:
+        return bloqueio
     if consulta.google_event_id:
         await ctx.calendar.delete_event(consulta.google_event_id)
     consulta.status = StatusConsulta.CANCELADA

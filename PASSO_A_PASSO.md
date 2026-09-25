@@ -11,7 +11,7 @@ aprovação dos templates da Meta (minutos a 1 dia).
 
 | Variável | De onde vem | Etapa |
 |---|---|---|
-| `BOT_DOMAIN`, `CHATWOOT_DOMAIN` | Seu domínio (ex.: `bot.clinica.com.br`, `chat.clinica.com.br`) | 1 |
+| `BOT_DOMAIN`, `CHATWOOT_DOMAIN` | Seu domínio (ex.: `bot.anapaulagiraldes.com.br`, `chat.anapaulagiraldes.com.br`) | 1 |
 | `ACME_EMAIL` | Seu e-mail (avisos do certificado HTTPS) | 1 |
 | `POSTGRES_PASSWORD`, `BOT_DB_PASSWORD`, `REDIS_PASSWORD`, `CHATWOOT_SECRET_KEY_BASE`, `WEBHOOK_SECRET`, `SCHEDULER_TOKEN` | Gerados por você no servidor (comando abaixo) | 3 |
 | `LLM_API_KEY` | Google AI Studio | 4 |
@@ -24,12 +24,14 @@ O resto já vem preenchido no `.env.example`.
 ---
 
 ## Etapa 1 — Domínio
-Você precisa de um domínio (ex.: `clinica.com.br`, registrado no Registro.br ou similar).
-Vamos usar dois subdomínios:
-- `bot.clinica.com.br` → o bot
-- `chat.clinica.com.br` → o painel do Chatwoot onde a equipe atende
+Vamos usar o domínio do site, **anapaulagiraldes.com.br**, com dois subdomínios novos. O
+site continua funcionando como está.
+- `bot.anapaulagiraldes.com.br` → o bot
+- `chat.anapaulagiraldes.com.br` → o painel do Chatwoot onde a equipe atende
 
-Os registros DNS são criados na etapa 2, depois de ter o IP.
+Você vai precisar do acesso ao painel onde o DNS do domínio é gerenciado: Registro.br,
+ou a empresa que hospeda o site (Hostinger, Locaweb, Wix etc.). Se foi uma agência que
+fez o site, peça a ela para criar os dois registros da etapa 2.
 
 ## Etapa 2 — Servidor na AWS (Lightsail)
 1. Acesse <https://lightsail.aws.amazon.com> (mesma conta da AWS).
@@ -107,22 +109,64 @@ ocupado. Para consultas marcadas à mão receberem lembrete, use o título
 `Consulta — Nome` (ou `Retorno — Nome`) e escreva o telefone na descrição.
 
 ## Etapa 6 — WhatsApp (Meta)
-1. Acesse <https://developers.facebook.com> → **Meus apps → Criar app** → tipo
-   **Empresa (Business)** → vincule ao Business Manager da clínica (crie um, se não tiver).
-2. No app, adicione o produto **WhatsApp**.
-3. **WhatsApp → Configuração da API → Adicionar número de telefone**: cadastre o número
-   do consultório e valide por SMS ou ligação.
-   ⚠️ Esse número **não pode estar em uso** no app WhatsApp/WhatsApp Business do celular.
-   Se estiver, apague a conta no app antes.
-4. **Anote:** o **Phone Number ID** e o **WhatsApp Business Account ID** (aparecem nessa
-   mesma tela).
-5. Token permanente: <https://business.facebook.com> → **Configurações → Usuários →
-   Usuários do sistema → Adicionar** (função Admin) → **Adicionar ativos**: selecione o app
-   (controle total) → **Gerar token**, com as permissões `whatsapp_business_messaging` e
-   `whatsapp_business_management`, validade **Nunca**. **Anote o token.**
-6. Adicione uma forma de pagamento no Business Manager. A Meta cobra por template
-   enviado (lembretes). Respostas dentro de 24h após o paciente escrever são gratuitas.
-7. **Templates**: em **WhatsApp Manager → Modelos de mensagem → Criar modelo**, crie estes,
+
+> **Nada da Meta precisa ser enviado para mim nem vai no `.env` do bot.** Os três dados
+> abaixo (Phone Number ID, Business Account ID e token) são digitados **só no Chatwoot**
+> (etapa 8). Quem conversa com o WhatsApp é o Chatwoot, não o bot.
+
+**O número do consultório hoje está no app WhatsApp Business.** A API oficial não
+funciona com o número ativo no app ao mesmo tempo. A exceção seria a "coexistência", mas
+ela exige ser *Tech Provider* da Meta e não vale a pena aqui. Por isso o caminho é:
+
+- **6A.** Montar e testar tudo com o **número de teste gratuito da Meta**. Nesse tempo o
+  consultório segue usando o app normalmente.
+- **6B.** Com tudo funcionando, **migrar o número real** para a API. A partir daí a equipe
+  atende pelo Chatwoot (tem app para celular), não mais pelo WhatsApp Business.
+
+### 6A — App da Meta e número de teste
+1. Acesse <https://business.facebook.com> e confira se a clínica tem um **Business
+   Manager** (Portfólio empresarial). Se não tiver, crie.
+2. Acesse <https://developers.facebook.com> → **Meus apps → Criar app** → caso de uso
+   **Outro** → tipo **Empresa (Business)** → vincule ao Business Manager da clínica.
+3. No painel do app, adicione o produto **WhatsApp** → **Configuração da API**.
+   A Meta cria automaticamente um **número de teste**. Nessa tela, **anote**:
+   - **Identificação do número de telefone** (Phone Number ID)
+   - **Identificação da conta do WhatsApp Business** (WhatsApp Business Account ID)
+4. Ainda nessa tela, em **Para**, cadastre o seu celular pessoal (até 5 números). Só
+   esses números conseguem conversar com o número de teste.
+5. **Token permanente** (o token da tela de configuração expira em 24h, não use):
+   <https://business.facebook.com> → **Configurações → Usuários → Usuários do sistema →
+   Adicionar** → nome `chatwoot`, função **Administrador** → **Atribuir ativos** → **Apps**
+   → selecione o app → **Controle total** → **Gerar novo token** → escolha o app, validade
+   **Nunca**, permissões `whatsapp_business_messaging` e `whatsapp_business_management`
+   → **copie e guarde o token** (ele só aparece uma vez).
+6. Siga para as etapas 7 a 11 usando esse número de teste. Os templates (item 7 abaixo)
+   podem ser criados já nessa conta.
+
+### 6B — Migrar o número real (depois que o teste estiver ok)
+1. No celular do consultório, faça backup das conversas se quiser guardar o histórico
+   (WhatsApp Business → Configurações → Conversas → Backup). Ele **não** vai para o
+   Chatwoot.
+2. Anote a foto, a descrição e o horário do perfil comercial. Eles serão cadastrados de
+   novo na Meta.
+3. No app WhatsApp Business: **Configurações → Conta → Apagar conta** (excluir minha conta).
+   O número fica livre para a API. Esse passo é irreversível para o app.
+4. Em <https://business.facebook.com> → **WhatsApp Manager → Números de telefone →
+   Adicionar número de telefone**: informe o nome de exibição (ex.: "Dra. Ana Paula
+   Giraldes"), a categoria (Saúde) e o número. Valide pelo código recebido por **SMS ou
+   ligação**. O chip precisa estar no celular.
+5. **Anote o novo Phone Number ID** (em Configuração da API, selecione o número real).
+6. Em **WhatsApp Manager → Visão geral**, adicione uma **forma de pagamento** (cartão). A
+   Meta cobra por template enviado (lembretes). Respostas dentro de 24h da mensagem do
+   paciente são gratuitas.
+7. No Chatwoot, crie uma **nova caixa de entrada** com o número real (etapa 8, itens 1 a 3
+   e 7), troque `CHATWOOT_INBOX_ID` no `.env` e rode `docker compose up -d bot`.
+8. Recomendado: **verificar a empresa** no Business Manager (Central de Segurança →
+   Verificação da empresa, com CNPJ). Aumenta o limite de conversas iniciadas pela clínica
+   e ajuda a aprovar o nome de exibição.
+
+### Templates
+Em **WhatsApp Manager → Modelos de mensagem → Criar modelo**, crie estes,
    com categoria **Utilidade** e idioma **Português (BR)**:
 
    **`lembrete_consulta`**
@@ -146,7 +190,7 @@ docker compose run --rm rails bundle exec rails db:chatwoot_prepare
 docker compose up -d --build
 docker compose ps
 ```
-Abra `https://chat.clinica.com.br` e crie a conta de administrador do Chatwoot.
+Abra `https://chat.anapaulagiraldes.com.br` e crie a conta de administrador do Chatwoot.
 O container `bot` vai reiniciar algumas vezes até a etapa 8 estar concluída. É normal.
 
 ## Etapa 8 — Chatwoot
@@ -164,7 +208,7 @@ O container `bot` vai reiniciar algumas vezes até a etapa 8 estar concluída. �
 6. Crie o bot. Descubra o seu `WEBHOOK_SECRET` com `grep WEBHOOK_SECRET .env` e rode no
    servidor (troque os dois valores):
    ```bash
-   docker compose exec rails bundle exec rails runner "b=AgentBot.create!(name:'Assistente', outgoing_url:'https://bot.clinica.com.br/webhooks/chatwoot?token=COLE_O_WEBHOOK_SECRET'); puts b.access_token.token"
+   docker compose exec rails bundle exec rails runner "b=AgentBot.create!(name:'Assistente', outgoing_url:'https://bot.anapaulagiraldes.com.br/webhooks/chatwoot?token=COLE_O_WEBHOOK_SECRET'); puts b.access_token.token"
    ```
    O comando imprime um token → `CHATWOOT_BOT_TOKEN=`.
    (Se o seu Chatwoot mostrar **Configurações → Bots**, dá para criar por lá também.)
@@ -181,9 +225,10 @@ docker compose logs -f bot     # deve aparecer "Application startup complete"
 ```
 
 ## Etapa 10 — Dados do consultório
-Edite `config/clinic.yaml` com endereço, formas de pagamento, política de cancelamento,
-dias/horários e duração do retorno (ou me passe esses dados que eu atualizo no
-repositório). Depois rode `bash /opt/botnefro/deploy/aws/update.sh`.
+Já estão no `config/clinic.yaml`: PIX ou dinheiro, cancelamento com 10 dias de
+antecedência, atendimento às terças das 8h às 16h, consulta de 1h e retorno de 45 min.
+**Falta o endereço.** Para mudar qualquer dado, edite o arquivo (ou me peça) e rode
+`bash /opt/botnefro/deploy/aws/update.sh`.
 
 ## Etapa 11 — Testar
 De um celular pessoal, mande mensagens para o número do consultório:
@@ -196,7 +241,7 @@ De um celular pessoal, mande mensagens para o número do consultório:
 - [ ] "Estou com muita dor" → mensagem fixa, etiqueta `urgente` e prioridade alta
 - [ ] Rodar a rotina de lembretes na hora, sem esperar as 09:00:
   ```bash
-  curl -X POST https://bot.clinica.com.br/jobs/daily -H "Authorization: Bearer $(grep SCHEDULER_TOKEN .env | cut -d= -f2)"
+  curl -X POST https://bot.anapaulagiraldes.com.br/jobs/daily -H "Authorization: Bearer $(grep SCHEDULER_TOKEN .env | cut -d= -f2)"
   ```
 
 ## Dia a dia

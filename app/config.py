@@ -143,9 +143,11 @@ class ClinicConfig(BaseModel):
     medica: str = "Dra. Ana Paula"
     especialidade: str = "nefrologista"
     cidade: str = "São Carlos (SP)"
+    site: str = ""
     endereco: str = "[A DEFINIR]"
     formas_pagamento: str = "[A DEFINIR]"
     politica_cancelamento: str = "[A DEFINIR]"
+    cancelamento_prazo_dias: int = 0
     valores: dict[str, str] = Field(default_factory=lambda: {"consulta": "R$ 500,00"})
     retorno: Retorno = Field(default_factory=Retorno)
     atendimento: Atendimento = Field(default_factory=Atendimento)

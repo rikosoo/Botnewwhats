@@ -23,6 +23,7 @@ INFORMAÇÕES
 - Endereço: {endereco}
 - Formas de pagamento: {pagamento}
 - Política de cancelamento/remarcação: {cancelamento}
+- Site: {site}
 - Se alguma informação acima estiver como "[A DEFINIR]", não a invente: use chamar_humano.
 
 AGENDAMENTO
@@ -66,6 +67,7 @@ def build_system_prompt(clinic: ClinicConfig, now: datetime, zone: ZoneInfo, nom
         endereco=clinic.endereco,
         pagamento=clinic.formas_pagamento,
         cancelamento=clinic.politica_cancelamento,
+        site=clinic.site or "[A DEFINIR]",
         agora=f"{WEEKDAY_NAMES[local.weekday()]}, {local:%Y-%m-%d %H:%M}",
         nome_paciente=nome_paciente or "desconhecido",
         consultas=f"- Consultas do paciente: {consultas_resumo}" if consultas_resumo else "",

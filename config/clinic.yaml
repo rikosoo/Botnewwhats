@@ -5,28 +5,31 @@ medica: "Dra. Ana Paula"
 especialidade: "nefrologista"
 cidade: "São Carlos (SP)"
 
+site: "https://anapaulagiraldes.com.br"
 endereco: "[A DEFINIR]"
-formas_pagamento: "[A DEFINIR]"
-politica_cancelamento: "[A DEFINIR]"
+formas_pagamento: "PIX ou dinheiro"
+politica_cancelamento: "Cancelamentos e remarcações devem ser feitos com pelo menos 10 dias de antecedência."
+# Dentro deste prazo o bot não cancela/remarca sozinho: transfere para a equipe decidir.
+cancelamento_prazo_dias: 10
 
 valores:
   consulta: "R$ 500,00"
 
 retorno:
   prazo_dias: 45
-  duracao_minutos: 60   # [A DEFINIR] (padrão: 1h)
+  duracao_minutos: 45
 
 atendimento:
   duracao_minutos: 60
   antecedencia_minima_horas: 24
   janela_maxima_dias: 60
   # Janelas de atendimento por dia da semana. Lista vazia = não atende.
-  dias:                                   # [A DEFINIR]
-    seg: ["08:00-12:00", "14:00-18:00"]
-    ter: []
-    qua: ["08:00-12:00", "14:00-18:00"]
+  dias:
+    seg: []
+    ter: ["08:00-16:00"]
+    qua: []
     qui: []
-    sex: ["08:00-12:00"]
+    sex: []
     sab: []
     dom: []
 
