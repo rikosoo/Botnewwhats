@@ -1,0 +1,48 @@
+# Dados do consultório. Itens marcados com [A DEFINIR] precisam ser preenchidos
+# antes de ir para produção. Nada aqui é segredo; segredos ficam no .env.
+
+medica: "Dra. Ana Paula"
+especialidade: "nefrologista"
+cidade: "São Carlos (SP)"
+
+endereco: "[A DEFINIR]"
+formas_pagamento: "[A DEFINIR]"
+politica_cancelamento: "[A DEFINIR]"
+
+valores:
+  consulta: "R$ 500,00"
+
+retorno:
+  prazo_dias: 45
+  duracao_minutos: 60   # [A DEFINIR] (padrão: 1h)
+
+atendimento:
+  duracao_minutos: 60
+  antecedencia_minima_horas: 24
+  janela_maxima_dias: 60
+  # Janelas de atendimento por dia da semana. Lista vazia = não atende.
+  dias:                                   # [A DEFINIR]
+    seg: ["08:00-12:00", "14:00-18:00"]
+    ter: []
+    qua: ["08:00-12:00", "14:00-18:00"]
+    qui: []
+    sex: ["08:00-12:00"]
+    sab: []
+    dom: []
+
+lembretes:
+  horario_execucao: "09:00"   # America/Sao_Paulo
+  dias_antes: 3
+  dias_depois: 3
+
+privacidade:
+  retencao_mensagens_dias: 365   # [A DEFINIR] sugestão: 12 meses
+  aviso_primeiro_contato: >-
+    Olá! Sou a assistente virtual da Dra. Ana Paula. Para o agendamento, utilizamos
+    apenas seu nome e telefone, conforme a LGPD.
+
+templates:
+  lembrete_consulta: "lembrete_consulta"
+  pos_consulta: "pos_consulta"
+  alerta_urgente: "alerta_urgente"   # opcional, aviso para o celular da Dra.
+  idioma: "pt_BR"

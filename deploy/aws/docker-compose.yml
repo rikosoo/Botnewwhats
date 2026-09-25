@@ -1,0 +1,123 @@
+# Stack completa em uma única instância EC2:
+#   caddy (HTTPS automático) -> bot (FastAPI) e Chatwoot (rails + sidekiq)
+#   postgres (bancos "bot" e "chatwoot") + redis (Chatwoot)
+#
+# Uso (na instância, dentro de deploy/aws):
+#   cp .env.example .env && nano .env
+#   docker compose run --rm rails bundle exec rails db:chatwoot_prepare   # 1ª vez
+#   docker compose up -d --build
+
+x-chatwoot: &chatwoot
+  image: chatwoot/chatwoot:${CHATWOOT_VERSION:-latest}
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
+  volumes:
+    - chatwoot_storage:/app/storage
+  environment:
+    RAILS_ENV: production
+    NODE_ENV: production
+    INSTALLATION_ENV: docker
+    RAILS_LOG_TO_STDOUT: "true"
+    LOG_LEVEL: info
+    SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY_BASE}
+    FRONTEND_URL: https://${CHATWOOT_DOMAIN}
+    DEFAULT_LOCALE: pt_BR
+    ENABLE_ACCOUNT_SIGNUP: "false"
+    FORCE_SSL: "false"   # o TLS termina no Caddy
+    ACTIVE_STORAGE_SERVICE: local
+    POSTGRES_HOST: postgres
+    POSTGRES_USERNAME: postgres
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    POSTGRES_DATABASE: chatwoot
+    REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+    REDIS_PASSWORD: ${REDIS_PASSWORD}
+    MAILER_SENDER_EMAIL: ${MAILER_SENDER_EMAIL:-}
+    SMTP_ADDRESS: ${SMTP_ADDRESS:-}
+    SMTP_PORT: ${SMTP_PORT:-587}
+    SMTP_USERNAME: ${SMTP_USERNAME:-}
+    SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    SMTP_AUTHENTICATION: login
+    SMTP_ENABLE_STARTTLS_AUTO: "true"
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      BOT_DOMAIN: ${BOT_DOMAIN}
+      CHATWOOT_DOMAIN: ${CHATWOOT_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - bot
+      - rails
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: chatwoot
+      BOT_DB_PASSWORD: ${BOT_DB_PASSWORD}
+      TZ: America/Sao_Paulo
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+  rails:
+    <<: *chatwoot
+    entrypoint: docker/entrypoints/rails.sh
+    command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
+
+  sidekiq:
+    <<: *chatwoot
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+
+  bot:
+    build:
+      context: ../..
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://bot:${BOT_DB_PASSWORD}@postgres:5432/bot
+      # O bot fala com o Chatwoot pela rede interna do Docker.
+      CHATWOOT_URL: http://rails:3000
+      TZ: America/Sao_Paulo
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+  chatwoot_storage:
+  caddy_data:
+  caddy_config:

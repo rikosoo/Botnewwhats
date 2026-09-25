@@ -1,0 +1,16 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$BOT_DOMAIN} {
+	# Só o necessário fica exposto: webhook do Chatwoot, health e rotina diária (com token).
+	@allowed path /webhooks/* /health /jobs/*
+	handle @allowed {
+		reverse_proxy bot:8000
+	}
+	respond 404
+}
+
+{$CHATWOOT_DOMAIN} {
+	reverse_proxy rails:3000
+}
